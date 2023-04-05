@@ -24,7 +24,7 @@ def get_forward_sim(params=None, zdot_model=None, runs=10, stride=1000, dt=1e-5)
     
     def fn(R, V):
         t = jnp.linspace(0.0, runs*stride*dt, runs*stride)
-        _z_out = ode.odeint(zdot_model_func, z0(R, V), t, params)
+        _z_out = ode.odeint(zdot_model_func, z0(R, V), t, params, atol=1.4e-7, rtol=1.4e-7)
         return _z_out[0::stride]
     
     return fn

@@ -12,6 +12,9 @@ import jraph
 from jraph._src import graph as gn_graph
 from jraph._src import utils
 
+from jax import random
+
+Global_RNG = jax.random.PRNGKey(42)
 
 """ GNN """
 
@@ -20,6 +23,27 @@ jax.tree_util.register_pytree_node(
     flatten_func=lambda s: (tuple(s.values()), tuple(s.keys())),
     unflatten_func=lambda k, xs: frozendict(zip(k, xs)))
 
+# Dropout layer as adapted from jax's stax module
+def Dropout(rate, mode='train'):
+  """Layer construction function for a dropout layer with given rate."""
+  def init_fun(rng, input_shape):
+    return input_shape, ()
+  def apply_fun(params, inputs, **kwargs):
+    # rng = kwargs.get('rng', None)
+    rng = Global_RNG
+    # if rng is None:
+    # #   msg = ("Dropout layer requires apply_fun to be called with a PRNG key "
+    # #          "argument. That is, instead of `apply_fun(params, inputs)`, call "
+    # #          "it like `apply_fun(params, inputs, rng)` where `rng` is a "
+    # #          "jax.random.PRNGKey value.")
+    #     msg = ("Using global RNGs")
+    #     raise ValueError(msg)
+    if mode == 'train':
+      keep = random.bernoulli(rng, rate, inputs.shape)
+      return jnp.where(keep, inputs / rate, 0)
+    else:
+      return inputs
+  return init_fun, apply_fun
 
 def SquarePlus(x):
     return lax.mul(0.5, lax.add(x, lax.sqrt(lax.add(lax.square(x), 4.))))
@@ -34,7 +58,9 @@ def forward_pass(params, x, activation_fn=SquarePlus):
 
     # Loop over the ReLU hidden layers
     for p in params[:-1]:
-        h = activation_fn(layer(p, h))
+        _, apply_dropout = Dropout(rate=0.2,mode='train')
+        h = apply_dropout(p,layer(p,h))
+        h = activation_fn(h)
 
     # Perform final traformation
     p = params[-1]
