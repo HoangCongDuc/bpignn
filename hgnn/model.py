@@ -16,6 +16,13 @@ from jax import random
 
 Global_RNG = jax.random.PRNGKey(42)
 
+
+def change_RNG(seed_num=None):
+    if seed_num is not None:
+        Global_RNG = jax.random.PRNGKey(seed_num)
+    else:
+        Global_RNG = jax.random.PRNGKey(np.random.randint(0, 65536))
+
 """ GNN """
 
 jax.tree_util.register_pytree_node(
@@ -58,7 +65,7 @@ def forward_pass(params, x, activation_fn=SquarePlus):
 
     # Loop over the ReLU hidden layers
     for p in params[:-1]:
-        _, apply_dropout = Dropout(rate=0.2,mode='train')
+        _, apply_dropout = Dropout(rate=0.5, mode='train')
         h = apply_dropout(p,layer(p,h))
         h = activation_fn(h)
 

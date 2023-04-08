@@ -1,6 +1,6 @@
 {
     "stride": 1,
-    "dt": 0.1,
+    "dt": 0.01,
     "lr": 0.01,
     "batch_size": 5000,
     "epochs": 2000
