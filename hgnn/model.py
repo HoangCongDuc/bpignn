@@ -35,9 +35,9 @@ def Dropout(rate, mode='train'):
   """Layer construction function for a dropout layer with given rate."""
   def init_fun(rng, input_shape):
     return input_shape, ()
-  def apply_fun(params, inputs, **kwargs):
+  def apply_fun(rng, params, inputs, **kwargs):
     # rng = kwargs.get('rng', None)
-    rng = Global_RNG
+    # rng = Global_RNG
     # if rng is None:
     # #   msg = ("Dropout layer requires apply_fun to be called with a PRNG key "
     # #          "argument. That is, instead of `apply_fun(params, inputs)`, call "
@@ -59,14 +59,19 @@ def layer(params, x):
     """ Simple ReLu layer for single sample """
     return jnp.dot(params[0], x) + params[1]
 
-def forward_pass(params, x, activation_fn=SquarePlus):
+def forward_pass(params, x, activation_fn=SquarePlus, dropout_rate=0., key=None):
     """ Compute the forward pass for each example individually """
     h = x
 
     # Loop over the ReLU hidden layers
     for p in params[:-1]:
-        _, apply_dropout = Dropout(rate=0.5, mode='train')
-        h = apply_dropout(p,layer(p,h))
+        if dropout_rate > 0.:
+            if key is None:
+                key = Global_RNG
+            _, apply_dropout = Dropout(rate=0.5, mode='train')
+            h = apply_dropout(rng=key, params=p, inputs=layer(p, h))
+        else:
+            h = layer(p, h)
         h = activation_fn(h)
 
     # Perform final traformation
@@ -367,7 +372,7 @@ def get_fully_connected_senders_and_receivers(
 
 
 def cal_graph(params, graph, eorder=None, mpass=1,
-              useT=True, useonlyedge=False, act_fn=SquarePlus):
+              useT=True, useonlyedge=False, act_fn=SquarePlus, dropout_rate=0.):
     fb_params = params["fb"]
     fne_params = params["fne"]
     fneke_params = params["fneke"]
@@ -389,62 +394,62 @@ def cal_graph(params, graph, eorder=None, mpass=1,
 
     def fne(n):
         def fn(ni):
-            out = forward_pass(fne_params, ni, activation_fn=lambda x: x)
+            out = forward_pass(fne_params, ni, activation_fn=lambda x: x, dropout_rate=dropout_rate)
             return out
         out = vmap(fn, in_axes=(0))(n)
         return out
 
     def fneke(n):
         def fn(ni):
-            out = forward_pass(fneke_params, ni, activation_fn=lambda x: x)
+            out = forward_pass(fneke_params, ni, activation_fn=lambda x: x, dropout_rate=dropout_rate)
             return out
         out = vmap(fn, in_axes=(0))(n)
         return out
 
     def fb(e):
         def fn(eij):
-            out = forward_pass(fb_params, eij, activation_fn=act_fn)
+            out = forward_pass(fb_params, eij, activation_fn=act_fn, dropout_rate=dropout_rate)
             return out
         out = vmap(fn, in_axes=(0))(e)
         return out
 
     def fv(n, e, s, r, sum_n_node):
         c1ij = jnp.hstack([n[r], e])
-        out = vmap(lambda x: forward_pass(fv_params, x))(c1ij)
+        out = vmap(lambda x: forward_pass(fv_params, x, dropout_rate=dropout_rate))(c1ij)
         return n + jax.ops.segment_sum(out, r, sum_n_node)
 
     def fe(e, s, r):
         def fn(hi, hj):
             c2ij = hi * hj
-            out = forward_pass(fe_params, c2ij, activation_fn=act_fn)
+            out = forward_pass(fe_params, c2ij, activation_fn=act_fn, dropout_rate=dropout_rate)
             return out
         out = e + vmap(fn, in_axes=(0, 0))(s, r)
         return out
 
     def ff1(e):
         def fn(eij):
-            out = forward_pass(ff1_params, eij, activation_fn=act_fn)
+            out = forward_pass(ff1_params, eij, activation_fn=act_fn, dropout_rate=dropout_rate)
             return out
         out = vmap(fn)(e)
         return out
 
     def ff2(n):
         def fn(ni):
-            out = forward_pass(ff2_params, ni, activation_fn=act_fn)
+            out = forward_pass(ff2_params, ni, activation_fn=act_fn, dropout_rate=dropout_rate)
             return out
         out = vmap(fn)(n)
         return out
 
     def ff3(n):
         def fn(ni):
-            out = forward_pass(ff3_params, ni, activation_fn=act_fn)
+            out = forward_pass(ff3_params, ni, activation_fn=act_fn, dropout_rate=dropout_rate)
             return out
         out = vmap(fn)(n)
         return out
 
     def ke(n):
         def fn(ni):
-            out = forward_pass(ke_params, ni, activation_fn=act_fn)
+            out = forward_pass(ke_params, ni, activation_fn=act_fn, dropout_rate=dropout_rate)
             return out
         out = vmap(fn)(n)
         return out
@@ -520,8 +525,8 @@ def cal_graph(params, graph, eorder=None, mpass=1,
     return Net(graph)
 
 
-def H_energy_fn(params, graph, eorder):
-    g, V, T = cal_graph(params, graph, eorder=eorder, useT=True, mpass=1)
+def H_energy_fn(params, graph, eorder, dropout_rate=0.):
+    g, V, T = cal_graph(params, graph, eorder=eorder, useT=True, mpass=1, dropout_rate=dropout_rate)
     return T + V
 
 
@@ -609,7 +614,7 @@ def get_constraints(N, Dim, phi_, mass=None):
 """ ENERGY FN """
 
 
-def energy_fn(senders, receivers, species, R, V, eorder):
+def energy_fn(senders, receivers, species, R, V, eorder, dropout_rate=0.):
     
     senders = np.array(senders)
     receivers = np.array(receivers)
@@ -630,7 +635,7 @@ def energy_fn(senders, receivers, species, R, V, eorder):
     def apply(R, V, params):
         state_graph.nodes.update(position=R)
         state_graph.nodes.update(velocity=V)
-        return H_energy_fn(params, state_graph, eorder)
+        return H_energy_fn(params, state_graph, eorder, dropout_rate=dropout_rate)
     
     return apply
 
