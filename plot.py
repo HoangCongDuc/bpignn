@@ -9,6 +9,8 @@ import pickle
 parser = argparse.ArgumentParser(description='GNN_dropout')
 parser.add_argument('--multi_plot', type=bool, default=True,  
                     help='Plot 10 different test cases')
+parser.add_argument('--single_plot', type=bool, default=False,  
+                    help='Plot trajectory for single idx')
 parser.add_argument('--exp', type=str, default='pendulum-n2',  
                     help='experiment name')
 parser.add_argument('--method', type=str, default='dropout', 
@@ -51,7 +53,7 @@ with open(f'{save_dir}all_traj.pkl', 'rb') as f:
 
 
 
-# Plot a single trajectory
+# Function to plot a single trajectory
 def plot_paths(all_traj, idx):
     trajectories = all_traj[idx]
 
@@ -65,6 +67,11 @@ def plot_paths(all_traj, idx):
         plt.plot(r[:,i,0], r[:,i,1], '-', color=f'C{i}', alpha=1.)
     plt.plot(r[-1,:,0], r[-1,:,1], 'o', color='black', alpha=1.)
 
+# Plot a single trajectory idx and save it
+if args.single_plot:
+    plot_paths(all_traj, idx)
+    plt.show()
+    plt.savefig(save_dir + f'trajectory_{idx}.png')
 
 ## Using the list all_traj, generate a single figure with 10 subplots, each showing the trajectories of the 10 test cases.
 ## Figure should arrange subplots in a squarish grid.
