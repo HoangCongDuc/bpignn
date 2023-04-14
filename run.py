@@ -1,3 +1,8 @@
+"""
+Example command: 
+export CUDA_VISIBLE_DEVICES=7; python run.py --exp=nbody-n4 --method=vi --add_noise=false
+"""
+
 from functools import partial
 import os
 import pickle as pkl
@@ -144,6 +149,12 @@ if 'pendulum' in exp:
     senders, receivers = pendulum_connections(N)
     eorder = edge_order(N)
     
+    def phi(x):
+        X = jnp.vstack([x[:1, :]*0, x])
+        return jnp.square(X[:-1, :] - X[1:, :]).sum(axis=1) - 1.0
+
+    constraints = get_constraints(N, dim, phi)
+    
 elif 'nbody' in exp:
     
     def get_fully_connected_senders_and_receivers(num_particles: int, self_edges: bool = False):
@@ -172,6 +183,8 @@ elif 'nbody' in exp:
     senders, receivers = get_fully_connected_senders_and_receivers(N)
     eorder = get_fully_edge_order(N)
     
+    constraints = None
+    
 else:
     raise ValueError(f'Invalid exp: {exp}')
 
@@ -196,12 +209,6 @@ apply_fn = energy_fn(
     senders=senders, receivers=receivers, species=species, R=R, V=V, eorder=eorder, dropout_rate=dropout_rate)
 Hmodel = generate_Hmodel(apply_fn)
 
-def phi(x):
-    X = jnp.vstack([x[:1, :]*0, x])
-    return jnp.square(X[:-1, :] - X[1:, :]).sum(axis=1) - 1.0
-
-constraints = get_constraints(N, dim, phi)
-
 zdot_model, lamda_force_model = get_zdot_lambda(
     N, dim, hamiltonian=Hmodel, drag=None, 
     constraints=constraints, 
@@ -223,8 +230,9 @@ if method == 'vi':
 
     guide = numpyro.infer.autoguide.AutoNormal(model, init_scale=0.1)
     optimizer = numpyro.optim.ClippedAdam(step_size=1e-3, clip_norm=1e-6)
-    svi = SVI(model, guide=guide, optim=optimizer, loss=Trace_ELBO())
-    svi_result = svi.run(rng_key_, 100000, Rs, Vs, Zs_dot, norm_scale=1e-4, subsample_size=2500, stable_update=True)
+    elbo = Trace_ELBO()
+    svi = SVI(model, guide=guide, optim=optimizer, loss=elbo)
+    svi_result = svi.run(rng_key_, 100000, Rs, Vs, Zs_dot, norm_scale=1e-4, subsample_size=2000, stable_update=True)
     
     key, rng_key_ = random.split(key)
     predictive = numpyro.infer.Predictive(guide, params=svi_result.params, num_samples=num_samples)
@@ -277,7 +285,7 @@ else:
             #     optimizer_step, (opt_state, params, 0), Rs, Vs, Zs_dot)
             larray += [l]
             ltarray += [loss_fn(params, Rst, Vst, Zst_dot)]
-            print(f"Epoch: {epoch + 1}/{epochs} Loss (MSE):  train={larray[-1]}, test={ltarray[-1]}")
+            tqdm.tqdm.write(f"Epoch: {epoch + 1}/{epochs} Loss (MSE):  train={larray[-1]}, test={ltarray[-1]}")
         
     params = get_params(opt_state)
 
@@ -295,12 +303,18 @@ else:
 # ---------
 # Simulation
 # ---------
+test_count = min(test_count, Zs_test.shape[0])
+runs = max(runs, Zs_test.shape[1])
+
+print(f'num_samples = {num_samples}')
+print(f'test_count = {test_count}')
+print(f'runs = {runs}')
+
 all_traj = []
 
 sim_model = get_forward_sim_noparam(
     zdot_model=zdot_model, runs=runs, stride=stride, dt=dt, tol=1e-5)
 
-test_count = min(test_count, Zs_test.shape[0])
 pbar = tqdm.trange(test_count * num_samples)
 
 for idx in range(test_count):
