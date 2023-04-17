@@ -57,7 +57,7 @@ parser.add_argument('--tol', type=float, default=1e-5,
                     help='simulation tolerance')
 parser.add_argument('--test_count', type=int, default=10, 
                     help='number of test cases to run')
-parser.add_argument('--runs', type=int, default=100, 
+parser.add_argument('--runs', type=int, default=300, 
                     help='number of simulation runs')
 parser.add_argument('--add_noise', type=bool, default=True, 
                     help='whether to add noise in simulation')
@@ -89,8 +89,6 @@ if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
 
-noise_scale = 0.01
-truncate_decimal = 2
 
 num_samples = 100
 
@@ -105,6 +103,16 @@ tol = args.tol
 
 print('Args =', vars(args))
 print('Out folder =', save_dir)
+
+with open(f'./data/{exp}/param.json', 'r') as f:
+    d = json.load(f)
+    stride = d['stride']
+    dt = d['dt']
+    lr = d['lr']
+    batch_size = d['batch_size']
+    epochs = d['epochs']
+    noise_scale = d.get('noise_scale', 0.01)
+    truncate_decimal = d.get('truncate_decimal', 2)
 
 # Loading files
 Zs_train = jnp.load(f'./data/{exp}/Zs_train.npy')
@@ -126,14 +134,6 @@ Zs_dot = Zs_dot_train.reshape(-1, N2, dim)
 
 Zst = Zs_test.reshape(-1, N2, dim)
 Zst_dot = Zs_dot_test.reshape(-1, N2, dim)
-
-with open(f'./data/{exp}/param.json', 'r') as f:
-    d = json.load(f)
-    stride = d['stride']
-    dt = d['dt']
-    lr = d['lr']
-    batch_size = d['batch_size']
-    epochs = d['epochs']
 
 
 if 'pendulum' in exp:

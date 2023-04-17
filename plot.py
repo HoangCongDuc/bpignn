@@ -113,46 +113,53 @@ if multi_plot:
 # Animate plots
 
 if animate:
-    trajectories = all_traj[idx]
-    frames = trajectories['pred_pos_avg'].shape[0]
-
-    fig, ax = plt.subplots()
-
-    r = trajectories['pred_pos_avg']
-    traj_pred = [ax.plot(r[:,i,0], r[:,i,1], '-', color=f'C{i}', alpha=1.)[0] for i in range(r.shape[1])]  
-    ball_pred, = ax.plot(r[-1,:,0], r[-1,:,1], 'o', color='black', alpha=0.5, zorder=5.)
-    if 'pendulum' in exp:
-        rods_pred, = ax.plot([0] + list(r[-1,:,0]), [0] + list(r[-1,:,1]), '-', color='gray', alpha=1.)
-    else:
-        rods_pred, = ax.plot([], [], '-', color='gray', alpha=1.)
-
-    r = trajectories['pred_pos']
-    point_cloud = [ax.plot(r[:,0,i,0], r[:,0,i,1], 'o', color=f'C{i}', 
-                        alpha=5. / num_samples, zorder=4., markerfacecolor=None)[0] 
-                for i in range(r.shape[2])]  
-
-    def gather():
-        return point_cloud + traj_pred + [rods_pred, ball_pred]
-
-    def init():
-        ax.set_aspect('equal', adjustable='box')
-        return gather()
-
-    def update(frame):
+    
+    for idx in range(min(len(all_traj), 10)):
         
+        trajectories = all_traj[idx]
+        frames = trajectories['pred_pos_avg'].shape[0]
+
+        fig, ax = plt.subplots()
+
         r = trajectories['pred_pos_avg']
-        for i in range(r.shape[1]):
-            traj_pred[i].set_data([], [])
-        ball_pred.set_data(r[frame,:,0], r[frame,:,1])
+        traj_pred = [ax.plot(r[:,i,0], r[:,i,1], '-', color=f'C{i}', alpha=1.)[0] for i in range(r.shape[1])]  
+        ball_pred, = ax.plot(r[-1,:,0], r[-1,:,1], 'o', color='black', alpha=0.5, zorder=5.)
         if 'pendulum' in exp:
-            rods_pred.set_data([0] + list(r[frame,:,0]), [0] + list(r[frame,:,1]))
-        
-        r = trajectories['pred_pos']
-        for i in range(r.shape[2]):
-            point_cloud[i].set_data(r[:,frame,i,0], r[:,frame,i,1])
-        
-        return gather()
+            rods_pred, = ax.plot([0] + list(r[-1,:,0]), [0] + list(r[-1,:,1]), '-', color='gray', alpha=1.)
+        else:
+            rods_pred, = ax.plot([], [], '-', color='gray', alpha=1.)
 
-    ani = FuncAnimation(fig, update, frames=tqdm.trange(frames), init_func=init, blit=True, interval=20)
-    writergif = PillowWriter(fps=30, bitrate=1000) 
-    ani.save(save_dir + f'animation_{idx}.gif', writer=writergif)
+        r = trajectories['pred_pos']
+        point_cloud = [ax.plot(r[:,0,i,0], r[:,0,i,1], 'o', color=f'C{i}', 
+                            alpha=5. / num_samples, zorder=4., markerfacecolor=None)[0] 
+                    for i in range(r.shape[2])]  
+
+        def gather():
+            return point_cloud + traj_pred + [rods_pred, ball_pred]
+
+        def init():
+            ax.set_aspect('equal', adjustable='box')
+            if 'pendulum' in exp:
+                lim = 1.03 * trajectories['pred_pos_avg'].shape[1]
+                ax.set_xlim(-lim, lim)
+                ax.set_ylim(-lim, lim)
+            return gather()
+
+        def update(frame):
+            
+            r = trajectories['pred_pos_avg']
+            for i in range(r.shape[1]):
+                traj_pred[i].set_data([], [])
+            ball_pred.set_data(r[frame,:,0], r[frame,:,1])
+            if 'pendulum' in exp:
+                rods_pred.set_data([0] + list(r[frame,:,0]), [0] + list(r[frame,:,1]))
+            
+            r = trajectories['pred_pos']
+            for i in range(r.shape[2]):
+                point_cloud[i].set_data(r[:,frame,i,0], r[:,frame,i,1])
+            
+            return gather()
+
+        ani = FuncAnimation(fig, update, frames=tqdm.trange(frames), init_func=init, blit=True, interval=20)
+        writergif = PillowWriter(fps=30, bitrate=1000) 
+        ani.save(save_dir + f'animation_{idx}.gif', writer=writergif)
