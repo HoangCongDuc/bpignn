@@ -18,6 +18,7 @@ Global_RNG = jax.random.PRNGKey(42)
 
 
 def change_RNG(seed_num=None):
+    global Global_RNG
     if seed_num is not None:
         Global_RNG = jax.random.PRNGKey(seed_num)
     else:
@@ -68,7 +69,7 @@ def forward_pass(params, x, activation_fn=SquarePlus, dropout_rate=0., key=None)
         if dropout_rate > 0.:
             if key is None:
                 key = Global_RNG
-            _, apply_dropout = Dropout(rate=0.5, mode='train')
+            _, apply_dropout = Dropout(rate=dropout_rate, mode='train')
             h = apply_dropout(rng=key, params=p, inputs=layer(p, h))
         else:
             h = layer(p, h)
@@ -638,7 +639,6 @@ def energy_fn(senders, receivers, species, R, V, eorder, dropout_rate=0.):
         return H_energy_fn(params, state_graph, eorder, dropout_rate=dropout_rate)
     
     return apply
-
 
 def generate_Hmodel(apply_fn):
     

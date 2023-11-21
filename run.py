@@ -22,9 +22,9 @@ from jax import vmap, lax
 import jax.numpy as jnp
 from jax.example_libraries import optimizers
 
-import flax
-from flax import linen as nn
-import optax
+# import flax
+# from flax import linen as nn
+# import optax
 from frozendict import frozendict
 
 import numpyro
@@ -35,7 +35,7 @@ import jraph
 from jraph._src import graph as gn_graph
 from jraph._src import utils
 
-print(f'Jax: CPUs={jax.local_device_count("cpu")} - GPUs={jax.local_device_count("gpu")}')
+# print(f'Jax: CPUs={jax.local_device_count("cpu")} - GPUs={jax.local_device_count("gpu")}')
 
 from hgnn.noisify import add_noise_and_truncate
 from hgnn.model import *
@@ -59,8 +59,10 @@ parser.add_argument('--test_count', type=int, default=10,
                     help='number of test cases to run')
 parser.add_argument('--runs', type=int, default=300, 
                     help='number of simulation runs')
-parser.add_argument('--add_noise', type=bool, default=True, 
+parser.add_argument('--add_noise', action='store_true',
                     help='whether to add noise in simulation')
+parser.add_argument('--save_dir', type=str, default=None,
+                    help='folder to save results')
 # parser.add_argument('--save_path', type=str, default='denoised/',  
 #                     help='folder containing denoised results')
 
@@ -84,6 +86,8 @@ else:
     args.dropout_rate = 0.
     dropout_rate = 0.
     save_dir = f'./results/{exp}/{method}/'
+if args.save_dir is not None:
+    save_dir = args.save_dir
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
@@ -120,9 +124,10 @@ Zs_dot_train = jnp.load(f'./data/{exp}/Zs_dot_train.npy')
 Zs_test = jnp.load(f'./data/{exp}/Zs_test.npy')
 Zs_dot_test = jnp.load(f'./data/{exp}/Zs_dot_test.npy')
 
-Zs_train, Zs_dot_train = add_noise_and_truncate(Zs_train, Zs_dot_train, 
-                                                scale=noise_scale, 
-                                                decimals=truncate_decimal)
+if add_noise:
+    Zs_train, Zs_dot_train = add_noise_and_truncate(Zs_train, Zs_dot_train, 
+                                                    scale=noise_scale, 
+                                                    decimals=truncate_decimal)
 
 N2, dim = Zs_train.shape[-2:]
 N = N2 // 2
@@ -283,7 +288,8 @@ else:
         if (epoch + 1) % (epochs // 20) == 0:
             # opt_state, params, l = step(
             #     optimizer_step, (opt_state, params, 0), Rs, Vs, Zs_dot)
-            larray += [l]
+            # larray += [l]
+            larray += [loss_fn(params, Rs, Vs, Zs_dot)]
             ltarray += [loss_fn(params, Rst, Vst, Zst_dot)]
             tqdm.tqdm.write(f"Epoch: {epoch + 1}/{epochs} Loss (MSE):  train={larray[-1]}, test={ltarray[-1]}")
         

@@ -3,9 +3,9 @@ from jax import vmap, lax
 import jax.numpy as jnp
 from jax.example_libraries import optimizers
 
-import flax
-from flax import linen as nn
-import optax
+# import flax
+# from flax import linen as nn
+# import optax
 from frozendict import frozendict
 
 import numpyro
